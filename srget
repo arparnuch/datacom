@@ -8,6 +8,8 @@ from urlparse import urlparse
 def mkDownloadRequest(serv, objNmae):
 	return ("GET {o} HTTP/1.1\r\n" + "Host: {s}" + "\r\n\r\n").format(o=objNmae, s=serv)
 
+def mkRangeRequest(serv, objNmae, byte):
+	return ("GET {o} HTTP/1.1\r\n" + "Host: {s}" + "Range: bytes={b}-" + "\r\n\r\n").format(o=objNmae, s=serv, b=byte)
 
 def getheader(data): ## index is the index of \r\n\r\n ## if the web does not have header this function is DOOMED
 	# while True:
@@ -33,35 +35,37 @@ def getheader(data): ## index is the index of \r\n\r\n ## if the web does not ha
 	# print "piece" + str(piece)
 	# print header_length
 	return (header, piece)
+def getsizefile(filepath):
+	return os.path.getsize(filepath)
+	
 
 def getDateModified(filename):
  ## it suppose to be header
  	count = 0
-	with open(filename, "r") as f:
+ 	date_modified = ""
+ 	location = "./" + filename
+	with open(location, "r") as f:
 		header = f.read()
-		last_modified_index = header.find("ETag")
-		enter_index = header.find('"')
+		last_modified_index = header.find("Last-Modified")
+		
+		if last_modified_index != -1:
+			enter_index = header[last_modified_index:].find('\r\n')
+			date_modified = header[last_modified_index:last_modified_index+enter_index]
 
-		if last_modified_index != -1:		## found ETag
-			if enter_index != -1: ## found enter
-				count += 1
-				if count == 1:
-					date_modified = header[last_modified_index:last_modified_index+enter_index]
-
-		print date_modified
+			
+		# print header[last_modified_index:]
+		
 
 def getcontenlength(header): ## get header file
 	count = 0
 	enter_index = 0
 	content_length_index = header.find('Content-Length')
 	# print content_length_index
-	boo_found_CL = False
 	content_length = 0
 
 	if content_length_index != -1:
 		enter_index = header[content_length_index:].find('\r\n')
 		content_length = header[content_length_index:content_length_index + enter_index].split(':')[1][1:]
-		boo_found_CL = True
 		# print content_length
 
 	return int(content_length)
@@ -81,7 +85,6 @@ def download_file(sock__, filename):
 	body_length = 0
 	header_info = None
 	piece = ""
-	not_boo_found_2enter = True
 	content_length = 0
 	location = "./" + filename
 	while True:
@@ -101,20 +104,93 @@ def download_file(sock__, filename):
 			piece = header_info[1]
 			content_length = getcontenlength(header)
 			body_length += len(piece)
-			body += piece
+			# body += piece
+			with open(filename, "a+") as f1:
+				# print "enter write"
+				f1.write(piece)
+				f1.flush()
 			
 		elif body_length < content_length:
 			body_length += len(data)
-			body += data
+			# body += data
+			with open(filename, "a+") as f2:
+				f2.write(data)
+				f2.flush()
 			
 		elif body_length == content_length:
-			with open(location, "w") as f:
-				f.write(body)
+			with open(filename, "a+") as f3:
+				f3.write(body)
+				f3.flush()
 			print content_length
 			print body_length
 			sock__.close()
 			break
 
+def resume(filename, sock__):
+	location = "./" + filename
+	# check size file and content-length
+	# downloaded_size = os.path.getsize(location)
+	# print "Enter resume"
+
+	downloaded_size = os.path.getsize(location)
+	print downloaded_size
+
+	enter2_index = 0
+	count = 0
+	header = ""
+	body = ""
+	body_length = 0
+	body_length += downloaded_size
+	# print "body_length" + str(body_length)
+	header_info = None
+	piece = ""
+	content_length = 0
+
+	
+	while True:
+		data = sock__.recv(1024)
+		# print data
+		enter2_index = data.find('\r\n\r\n')
+		# print enter2_index
+		if enter2_index != -1: ## foudn \r\n\r\n
+			count += 1
+			print "count" + str(count)
+
+
+		if count == 1:
+			count += 1
+			header_info = getheader(data)
+			header = header_info[0] ## correct
+			# print header
+			piece = header_info[1]
+			content_length = getcontenlength(header)
+			# print content_length
+			print "content_length " + str(content_length)
+			body_length += len(piece)
+			# body += piece
+			with open(filename, "a+") as f1:
+				# print "enter write"
+				f1.write(piece)
+				f1.flush()
+			
+		elif body_length < content_length:
+			print "enter write"
+			print os.path.getsize('test.jpg')
+			body_length += len(data)
+			# body += data
+			with open(filename, "a+") as f2:
+				f2.write(data)
+				f2.flush()
+			
+		elif body_length == content_length:
+			with open(filename, "a+") as f3:
+				f3.write(body)
+				f3.flush()
+			print content_length
+			print body_length
+			sock__.close()
+			break
+			
 		
 def srget():
 	## IF HTTPS PRINT THIS WEB IS SECURE AND SOCK.CLOSE 
@@ -137,7 +213,7 @@ def srget():
 
 	port = result.port
 
-	check_file(filename)
+	# check_file(filename)
 	
 	if scheme == 'http':
 		pass
@@ -149,27 +225,73 @@ def srget():
 	
 
 
-	sock = sk.socket(sk.AF_INET, sk.SOCK_STREAM)
 	# print servName
 	# print port
-	sock.connect((servName, port))
-
-	request = mkDownloadRequest(servName, path)  #'/'
-	sock.send(request)
+	
 
 	# print "Fine"
-	location = "./" + filename
+	# location = "./" + filename
+	# print location
+	print filename
+	if os.path.exists(filename): ## if exist create file
+		print "enter"
+		sock = sk.socket(sk.AF_INET, sk.SOCK_STREAM)
+		downled_size = os.path.getsize(filename)
+		request = mkRangeRequest(servName, path, downled_size)	
+		sock.connect((servName, port))
+		sock.send(request)
+		
+	# 	## check date modfied - contentlength  - size
 
-	if not os.path.exists(location): # if not exisit create file
-		download_file(sock, filename)
+		resume(filename, sock)
+
 	else:
-		f3 = open('./header.txt', "wb") 
+		print "enter2"
+		sock = sk.socket(sk.AF_INET, sk.SOCK_STREAM)
+		request = mkDownloadRequest(servName, path)	
+		sock.connect((servName, port))
+		sock.send(request)
+		download_file(sock, filename)
 
 
-# srget()
-getDateModified('header.txt')
+	# else:  ## if file exit
+
+	# 	f3 = open('./header.txt', "wb")
+	# 	old_date_modified = getDateModified('./header.txt') 
+	# 	old_content_length = getcontenlength('./header.txt')
+
+		
 
 
+
+		# enter2_index = data.find('\r\n\r\n')
+		# count = 0
+		# body_length = 0
+		# body = ""
+		# new_header = ""
+		# new_content_length = ""
+		# piece = ""
+		# # if enter2_index != -1: ## foudn \r\n\r\n
+		# 	count += 1
+		# 	print "count" + str(count)
+
+		# if count == 1:
+		# 	count += 1
+		# 	header_info = getheader(data)
+		# 	new_header = header_info[0] ## correct
+		# 	new_content_length = getcontenlength(new_header)
+		# 	body_length += len(piece)
+		# 	body += piece
+		## compare date modifired and content length
+
+
+	
+
+
+srget()
+# getDateModified('header.txt')
+
+# resume('')
 
 
 
