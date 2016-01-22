@@ -7,13 +7,14 @@ def mkDownloadRequest(serv, objNmae):
 	return ("GET {o} HTTP/1.1\r\n" + "Host: {s}" + "\r\n\r\n").format(o=objNmae, s=serv)
 
 
-def getheader(sock__): ## index is the index of \r\n\r\n
+def getheader(data): ## index is the index of \r\n\r\n
 	while True:
-		data = sock__.recv(1024)
+		# data = sock__.recv(1024)
 		text = ""
 		text = text + data
 		found_index = text.find('\r\n\r\n')
-
+		header_length = 0
+		header_length += len(data)
 		if found_index != -1: ## found \r\n\r\n
 			header = data[:found_index]
 		
@@ -23,40 +24,67 @@ def getheader(sock__): ## index is the index of \r\n\r\n
 	print header
 	# print "=============================================="
 	# print piece
-	return (header, piece)
+	# print header_length
+	return (header, piece, header_length)
 
 def getcontenlength(header): ## get header file
 	count = 0
 	enter_count = 0
 	content_length_index = header.find('Content-Length')
-	# print content_length_index
-
+	
 	if content_length_index != -1:
 		enter_count = header.find('\r\n')
-		# print enter_count
-		# print enter_count
 		if enter_count != -1: ## found \r\n
 			count += 1
-			# print "enter"
 			if count == 1:
-				length = header[content_length_index:content_length_index+enter_count+1].split(':')[1][1:]
-				print length
+				content_length = header[content_length_index:content_length_index+enter_count+1].split(':')[1][1:]
+				print content_length
 
-	# return length
+	return content_length
 
 #print "{!r".format(mkDownloadRequest('intranet.mahidol', '/'))
-def download_file(sock__, header, piece):
+def download_file(sock__):
 	while True:
 		data = sock__.recv(1024)
+		boo_not_found_2enter = True
+		piece = ""
+		header = ""
+		header_length = 0
+		## if found \r\n\r\n in data then stop sending data to get header  // send data until found \r\n\r\n
+		while boo_not_found_2enter:
 
-		## if found \r\n\r\n in data then stop sending data to get header
+			header_info = getheader(data) ## write to another file
+			header = header[0]
+			piece = header_info[1]
+			header_length = header_info[2]
+			if data.find('\r\n\r\n') != -1: ## Stop this loop if found \r\n\r\n
+				boo_not_found_2enter = False
 
-		body_length = 0 - getcontenlength(header) + len(piece)
-		body_length += len(data)
+		content_length = getcontenlength(header)
+		# print "Something"
+		if !boo_not_found_2enter:  ## after we found \r\n\r\n
+
+			# !!!!!!!!! body_length = 0 - header_length + piece  ## start keep body length to compare with content-length and body data itself
+			body_length += len(data)
+			#with open() as f:
+
+			## write body data to file ----- and start to check if bodylength < content_length
 
 
-servName = 'www.google.com'
-#http://images6.fanpop.com/image/photos/37100000/Lovely-Nala_Cat-nala-the-cat-37155814-701-701.jpg
+			
+		sock__.close()
+		break		
+
+
+
+
+
+
+
+
+
+servName = 'classroomclipart.com'
+#'www.google.com'
 #'intranet.mahidol'
 port = 80
 
@@ -76,8 +104,11 @@ if not os.path.exists('./header.txt'):
 if not os.path.exists('./info.txt'):
 	f4 = open('./info.txt', "w")
 
-header, piece = getheader(sock)
-getcontenlength(header)
+# header, piece = getheader(sock)
+# getcontenlength(header)
+download_file(sock)
+
+
 # with open('./info.txt', "rw") as f1:
 # 	while True:
 # 		data = sock.recv(1024)
@@ -105,8 +136,6 @@ getcontenlength(header)
 
 		
 
-# 	## if we can find the end of header --> int count content-length
-	
 # 	# while count < length :   ## why it not stop when i set it to <=
 # 	#  	data = sock.recv(1024)
 # 	#  	body_length += len(data)
@@ -118,10 +147,6 @@ getcontenlength(header)
 
 
 
-# 	## if found \r\n\r\n --> slice header from 0 to found_index
-
-
-# ## cut from 0:found index
 
 
 
