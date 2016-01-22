@@ -1,0 +1,195 @@
+#!/usr/bin/env python
+
+import socket as sk 
+import os
+import sys
+from urlparse import urlparse
+
+def mkDownloadRequest(serv, objNmae):
+	return ("GET {o} HTTP/1.1\r\n" + "Host: {s}" + "\r\n\r\n").format(o=objNmae, s=serv)
+
+
+def getheader(data): ## index is the index of \r\n\r\n ## if the web does not have header this function is DOOMED
+	# while True:
+	# data = sock__.recv(1024)
+	text = ""
+	text = text + data
+	header = ""
+	found_index = text.find('\r\n\r\n')
+	header_length = found_index+4
+	if found_index != -1: ## found \r\n\r\n
+		header = data[:found_index]
+	
+	piece = data[header_length:]
+	
+
+	if not os.path.exists('./header.txt'): # if not exisit create file
+		f3 = open('./header.txt', "wb")
+	with open('header.txt', "wb") as f:
+		f.write(header)
+
+	# print header
+	# print "=============================================="
+	# print "piece" + str(piece)
+	# print header_length
+	return (header, piece)
+
+def getDateModified(filename):
+ ## it suppose to be header
+ 	count = 0
+	with open(filename, "r") as f:
+		header = f.read()
+		last_modified_index = header.find("ETag")
+		enter_index = header.find('"')
+
+		if last_modified_index != -1:		## found ETag
+			if enter_index != -1: ## found enter
+				count += 1
+				if count == 1:
+					date_modified = header[last_modified_index:last_modified_index+enter_index]
+
+		print date_modified
+
+def getcontenlength(header): ## get header file
+	count = 0
+	enter_index = 0
+	content_length_index = header.find('Content-Length')
+	# print content_length_index
+	boo_found_CL = False
+	content_length = 0
+
+	if content_length_index != -1:
+		enter_index = header[content_length_index:].find('\r\n')
+		content_length = header[content_length_index:content_length_index + enter_index].split(':')[1][1:]
+		boo_found_CL = True
+		# print content_length
+
+	return int(content_length)
+
+
+def check_file(filename):
+	location = "./" + filename
+
+	if not os.path.exists(location): # if not exisit create file
+		f4 = open(location, "w")
+
+def download_file(sock__, filename):
+	# check_file() ## how to use with open('./header.txt', './data.txt', "rw") as f1, f2
+	count = 0
+	header = ""
+	body = ""
+	body_length = 0
+	header_info = None
+	piece = ""
+	not_boo_found_2enter = True
+	content_length = 0
+	location = "./" + filename
+	while True:
+		data = sock__.recv(1024)
+		# print data
+		enter2_index = data.find('\r\n\r\n')
+
+		if enter2_index != -1: ## foudn \r\n\r\n
+			count += 1
+			print "count" + str(count)
+
+
+		if count == 1:
+			count += 1
+			header_info = getheader(data)
+			header = header_info[0] ## correct
+			piece = header_info[1]
+			content_length = getcontenlength(header)
+			body_length += len(piece)
+			body += piece
+			
+		elif body_length < content_length:
+			body_length += len(data)
+			body += data
+			
+		elif body_length == content_length:
+			with open(location, "w") as f:
+				f.write(body)
+			print content_length
+			print body_length
+			sock__.close()
+			break
+
+		
+def srget():
+	## IF HTTPS PRINT THIS WEB IS SECURE AND SOCK.CLOSE 
+	# sys.exit
+
+	# len(sys.argv) = # of args
+	arg_list = sys.argv
+
+	filename = arg_list[2]
+
+	url = arg_list[3]
+
+	result = urlparse(url)
+
+	scheme = result[0]
+
+	servName = result[1]   #'www.google.co.th'
+
+	path = result[2]
+
+	port = result.port
+
+	check_file(filename)
+	
+	if scheme == 'http':
+		pass
+	else:
+		sys.exit(2) ## when you want to die enter any number except 0 welcome!!
+
+	if port == None:
+		port = 80
+	
+
+
+	sock = sk.socket(sk.AF_INET, sk.SOCK_STREAM)
+	# print servName
+	# print port
+	sock.connect((servName, port))
+
+	request = mkDownloadRequest(servName, path)  #'/'
+	sock.send(request)
+
+	# print "Fine"
+	location = "./" + filename
+
+	if not os.path.exists(location): # if not exisit create file
+		download_file(sock, filename)
+	else:
+		f3 = open('./header.txt', "wb") 
+
+
+# srget()
+getDateModified('header.txt')
+
+
+
+
+
+
+# srget -o test.txt http://www.google.com/
+
+## if download --> interrupt --> don't crash save only we got
+
+## if filename already exist in the folder --> if not download as normal
+				# ||
+## first if you want to resume
+	## check first if the file modified date is changed or not 
+		## if it is --> redownload the whole file
+		## if not --> check size of file to compare with the content-length  --> request for byte that we want
+		
+
+
+
+
+
+
+
+
