@@ -12,7 +12,8 @@ def mkRangeRequest(serv, objNmae, byte):
 	print "Enter byte range request"
 	return ("GET {o} HTTP/1.1\r\n" + "Host: {s}\r\n" + "Range: bytes={b}-\r\n\r\n").format(o=objNmae, s=serv, b=byte)
 
-def getheader(data): ## index is the index of \r\n\r\n ## if the web does not have header this function is DOOMED
+
+def getheader(data , saved_filename): ## index is the index of \r\n\r\n ## if the web does not have header this function is DOOMED
 	text = ""
 	text = text + data
 	header = ""
@@ -23,11 +24,10 @@ def getheader(data): ## index is the index of \r\n\r\n ## if the web does not ha
 	
 	piece = data[header_length:]
 	
-
-	if not os.path.exists('./header.txt'): # if not exisit create file
-		f3 = open('./header.txt', "w")  ## This here was "wb"
-	with open('header.txt', "w") as f: ## This here was "wb"
-		f.write(header)
+	if saved_filename != None:
+		f3 = open(saved_filename, "w") # override it ## This here was "wb"
+		with open(saved_filename, "w") as f: ## This here was "wb"
+			f.write(header)
 
 	return (header, piece)
 def getsizefile(filepath):
@@ -50,6 +50,28 @@ def getDateModified(filename):
 			
 		# print header[last_modified_index:]
 		
+def checkResumable(oldfile, newfile, downloaded_size): ## check date  -- > check downloaded size vs Contenlength
+	old_date = getDateModified(oldfile)
+	new_date = getDateModified(newfile)
+	boo1 = None
+	content_length = 0
+	if old_date == new_date: ## same data
+		boo1 = True
+	else:
+		boo1 = False
+
+	with open(oldfile, "r") as f1:
+		header = f1.read()
+		content_length = getcontenlength(header)
+
+	if downloaded_size < content_length: ## unfinished download
+		boo2 = True
+	else:
+		boo2 = False
+
+	check = boo1 and boo2
+	return check
+
 
 def getcontenlength(header): ## get header file
 	count = 0
@@ -88,7 +110,8 @@ def download_file(sock__, filename):
 
 		if count == 1:
 			count += 1
-			header_info = getheader(data)
+			header_info = getheader(data, 'old_header.txt')
+			print "Write old header"
 			header = header_info[0] ## correct
 			piece = header_info[1]
 			content_length = getcontenlength(header)
@@ -136,7 +159,8 @@ def resume(filename, sock__):
 
 		if count == 1:
 			count += 1
-			header_info = getheader(data)
+			header_info = getheader(data, None)
+			print "Write new header"
 			header = header_info[0] ## correct
 			
 			piece = header_info[1]
@@ -213,24 +237,69 @@ def srget():
 	# location = "./" + filename
 	print filename
 	if os.path.exists(filename): ## if exist create file -- > resume
-		print "enter"
+		# print "enter"
 		downled_size = os.path.getsize(filename)
+
 		print "downled_size : " + str(downled_size)	
 
-		sock = getConnetion(result, filename, downled_size)
-		resume(filename, sock)
+		if checkResumable("old_header.txt", "new_header.txt", downled_size):
+
+			sock = getConnetion(result, filename, downled_size)
+
+			resume(filename, sock)
 
 	else:  ## load all
 		print "enter2"
 		sock = getConnetion(result,filename, 0)
 		download_file(sock, filename)
 
+def getHeaderRequest(serv, objNmae):
+	return ("HEAD {o} HTTP/1.1\r\n" + "Host: {s}" + "\r\n\r\n").format(o=objNmae, s=serv)
 
+def test():
+	arg_list = sys.argv
+
+	filename = arg_list[2]
+
+	url = arg_list[3]
+	result = urlparse(url)
+	
+	scheme = result[0]
+	servName = result[1]   #'www.google.co.th'
+	path = result[2]
+	port = result.port
+
+	if scheme == 'http':
+		pass
+	else:
+		sys.exit(2) ## when you want to die enter any number except 0 welcome!!
+
+	if port == None:
+		port = 80
 
 	
+	sock = sk.socket(sk.AF_INET, sk.SOCK_STREAM)
+
+		
+	request = getHeaderRequest(servName, path)	
+	
+	sock.connect((servName, port))
+	sock.send(request)
+
+	while True:
+		data = sock.recv(1024)
+		print data
+		if data.find('\r\n\r\n') != -1:
+			break
+			sock.close()
+		print data
+		
 
 
-srget()
+# srget()
+test()
+
+## first check if file exist ?  --> date modified similar? -NO-> downloaded vs content-length equal? -NO-> if not resume it
 
 # srget -o test.txt http://www.google.com/
 
