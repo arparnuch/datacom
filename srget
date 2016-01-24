@@ -9,11 +9,10 @@ def mkDownloadRequest(serv, objNmae):
 	return ("GET {o} HTTP/1.1\r\n" + "Host: {s}" + "\r\n\r\n").format(o=objNmae, s=serv)
 
 def mkRangeRequest(serv, objNmae, byte):
-	return ("GET {o} HTTP/1.1\r\n" + "Host: {s}" + "Range: bytes={b}-" + "\r\n\r\n").format(o=objNmae, s=serv, b=byte)
+	print "Enter byte range request"
+	return ("GET {o} HTTP/1.1\r\n" + "Host: {s}\r\n" + "Range: bytes={b}-\r\n\r\n").format(o=objNmae, s=serv, b=byte)
 
 def getheader(data): ## index is the index of \r\n\r\n ## if the web does not have header this function is DOOMED
-	# while True:
-	# data = sock__.recv(1024)
 	text = ""
 	text = text + data
 	header = ""
@@ -26,14 +25,10 @@ def getheader(data): ## index is the index of \r\n\r\n ## if the web does not ha
 	
 
 	if not os.path.exists('./header.txt'): # if not exisit create file
-		f3 = open('./header.txt', "wb")
-	with open('header.txt', "wb") as f:
+		f3 = open('./header.txt', "w")  ## This here was "wb"
+	with open('header.txt', "w") as f: ## This here was "wb"
 		f.write(header)
 
-	# print header
-	# print "=============================================="
-	# print "piece" + str(piece)
-	# print header_length
 	return (header, piece)
 def getsizefile(filepath):
 	return os.path.getsize(filepath)
@@ -71,14 +66,8 @@ def getcontenlength(header): ## get header file
 	return int(content_length)
 
 
-def check_file(filename):
-	location = "./" + filename
-
-	if not os.path.exists(location): # if not exisit create file
-		f4 = open(location, "w")
 
 def download_file(sock__, filename):
-	# check_file() ## how to use with open('./header.txt', './data.txt', "rw") as f1, f2
 	count = 0
 	header = ""
 	body = ""
@@ -104,15 +93,12 @@ def download_file(sock__, filename):
 			piece = header_info[1]
 			content_length = getcontenlength(header)
 			body_length += len(piece)
-			# body += piece
 			with open(filename, "a+") as f1:
-				# print "enter write"
 				f1.write(piece)
 				f1.flush()
 			
 		elif body_length < content_length:
 			body_length += len(data)
-			# body += data
 			with open(filename, "a+") as f2:
 				f2.write(data)
 				f2.flush()
@@ -128,20 +114,12 @@ def download_file(sock__, filename):
 
 def resume(filename, sock__):
 	location = "./" + filename
-	# check size file and content-length
-	# downloaded_size = os.path.getsize(location)
-	# print "Enter resume"
-
-	downloaded_size = os.path.getsize(location)
-	print downloaded_size
 
 	enter2_index = 0
 	count = 0
 	header = ""
 	body = ""
 	body_length = 0
-	body_length += downloaded_size
-	# print "body_length" + str(body_length)
 	header_info = None
 	piece = ""
 	content_length = 0
@@ -149,9 +127,8 @@ def resume(filename, sock__):
 	
 	while True:
 		data = sock__.recv(1024)
-		# print data
 		enter2_index = data.find('\r\n\r\n')
-		# print enter2_index
+		
 		if enter2_index != -1: ## foudn \r\n\r\n
 			count += 1
 			print "count" + str(count)
@@ -161,28 +138,25 @@ def resume(filename, sock__):
 			count += 1
 			header_info = getheader(data)
 			header = header_info[0] ## correct
-			# print header
+			
 			piece = header_info[1]
 			content_length = getcontenlength(header)
-			# print content_length
-			print "content_length " + str(content_length)
+			
 			body_length += len(piece)
-			# body += piece
 			with open(filename, "a+") as f1:
-				# print "enter write"
 				f1.write(piece)
 				f1.flush()
-			
+
 		elif body_length < content_length:
-			print "enter write"
-			print os.path.getsize('test.jpg')
+			
 			body_length += len(data)
-			# body += data
+			print "Body length + data: " + str(body_length)
 			with open(filename, "a+") as f2:
 				f2.write(data)
-				f2.flush()
-			
-		elif body_length == content_length:
+				f2.flush() ## why after download to the right amount of data it just wait for like 
+	
+		if body_length == content_length:
+			print "Not Enter"
 			with open(filename, "a+") as f3:
 				f3.write(body)
 				f3.flush()
@@ -190,7 +164,36 @@ def resume(filename, sock__):
 			print body_length
 			sock__.close()
 			break
-			
+
+def getConnetion(parsed_url,filename, downloaded_size):
+	
+	scheme = parsed_url[0]
+	servName = parsed_url[1]   #'www.google.co.th'
+	path = parsed_url[2]
+	port = parsed_url.port
+
+	if scheme == 'http':
+		pass
+	else:
+		sys.exit(2) ## when you want to die enter any number except 0 welcome!!
+
+	if port == None:
+		port = 80
+
+	
+	sock = sk.socket(sk.AF_INET, sk.SOCK_STREAM)
+
+		
+	if downloaded_size == 0:
+		print "Enter downloaded_size == 0"
+		request = mkDownloadRequest(servName, path)	
+	else:
+		request = mkRangeRequest(servName, path, downloaded_size)
+
+	sock.connect((servName, port))
+	sock.send(request)
+
+	return sock			
 		
 def srget():
 	## IF HTTPS PRINT THIS WEB IS SECURE AND SOCK.CLOSE 
@@ -202,99 +205,32 @@ def srget():
 	filename = arg_list[2]
 
 	url = arg_list[3]
-
 	result = urlparse(url)
-
-	scheme = result[0]
-
-	servName = result[1]   #'www.google.co.th'
-
-	path = result[2]
-
-	port = result.port
-
-	# check_file(filename)
-	
-	if scheme == 'http':
-		pass
-	else:
-		sys.exit(2) ## when you want to die enter any number except 0 welcome!!
-
-	if port == None:
-		port = 80
 	
 
-
-	# print servName
-	# print port
 	
-
-	# print "Fine"
+	
 	# location = "./" + filename
-	# print location
 	print filename
-	if os.path.exists(filename): ## if exist create file
+	if os.path.exists(filename): ## if exist create file -- > resume
 		print "enter"
-		sock = sk.socket(sk.AF_INET, sk.SOCK_STREAM)
 		downled_size = os.path.getsize(filename)
-		request = mkRangeRequest(servName, path, downled_size)	
-		sock.connect((servName, port))
-		sock.send(request)
-		
-	# 	## check date modfied - contentlength  - size
+		print "downled_size : " + str(downled_size)	
 
+		sock = getConnetion(result, filename, downled_size)
 		resume(filename, sock)
 
-	else:
+	else:  ## load all
 		print "enter2"
-		sock = sk.socket(sk.AF_INET, sk.SOCK_STREAM)
-		request = mkDownloadRequest(servName, path)	
-		sock.connect((servName, port))
-		sock.send(request)
+		sock = getConnetion(result,filename, 0)
 		download_file(sock, filename)
 
-
-	# else:  ## if file exit
-
-	# 	f3 = open('./header.txt', "wb")
-	# 	old_date_modified = getDateModified('./header.txt') 
-	# 	old_content_length = getcontenlength('./header.txt')
-
-		
-
-
-
-		# enter2_index = data.find('\r\n\r\n')
-		# count = 0
-		# body_length = 0
-		# body = ""
-		# new_header = ""
-		# new_content_length = ""
-		# piece = ""
-		# # if enter2_index != -1: ## foudn \r\n\r\n
-		# 	count += 1
-		# 	print "count" + str(count)
-
-		# if count == 1:
-		# 	count += 1
-		# 	header_info = getheader(data)
-		# 	new_header = header_info[0] ## correct
-		# 	new_content_length = getcontenlength(new_header)
-		# 	body_length += len(piece)
-		# 	body += piece
-		## compare date modifired and content length
 
 
 	
 
 
 srget()
-# getDateModified('header.txt')
-
-# resume('')
-
-
-
 
 # srget -o test.txt http://www.google.com/
 
