@@ -8,11 +8,9 @@ import sys
 from urlparse import urlparse
 import filecmp
 
-# print make_request("GET", "/", {"Host": "me.com"})
 
 
 def mkRangeRequest(serv, objNmae, start, end):
-	# print "Enter byte range request"
 	return ("GET {o} HTTP/1.1\r\n" + "Host: {h}\r\n" + "Connection: close\r\n" + "Range: bytes={s}-{e}\r\n\r\n").format(o=objNmae, h=serv, s=start, e=end)
 
 def getHeaderRequest(serv, objNmae):
@@ -43,11 +41,11 @@ def getHeader_Before(result):
 	path = result[2] 	#///////////////
 	port = result.port #//////////////////
 
-	if scheme == 'http':
-		pass
-	else:
+	if 'https' in path:
 		print "Unable to download from this file"
-		sys.exit(2) ## when you want to die enter any number except 0 welcome!!
+		sys.exit(2)
+	elif 'http://' not in path:
+		path = 'http://' + path
 
 	if port == None:
 		port = 80
@@ -60,25 +58,21 @@ def getHeader_Before(result):
 
 	while True:
 		data = sock.recv(1024)
-		# print data
 		with open('Before_Header.txt', "w") as f:
 			f.write(data)
 		if data.find('\r\n\r\n') != -1:
 			break
-			# sock.close()
-
+		
 def getcontenlength(header): ## get header file
 	count = 0
 	enter_index = 0
 	content_length_index = header.find('Content-Length')
-	# print content_length_index
 	content_length = 0
 
 	if content_length_index != -1:
 		enter_index = header[content_length_index:].find('\r\n')
 		content_length = header[content_length_index:content_length_index + enter_index].split(':')[1][1:]
-		# print content_length
-
+	
 	return int(content_length)
 		
 def getSomething(filename, something): ## version include getDateModified and getETag
@@ -162,15 +156,12 @@ class HTTPClient(asyncore.dispatcher): ## inherit - extend in python style
 
 	def handle_read(self): ## when recv = there is something for you to read --> do what
 		buf = self.recv(8192) ## 2K - 10K -- recoomend 8K
-		# print buf
-		# self.recvbuf.write(buf)
-
+		
 		self.logger.debug("recv {0} bytes".format(len(buf)))
 
 		body_length = 0
 		content_length = ""
 		count = 0
-		##########################################################
 		
 		header = open(self.filename, "a+")
 
@@ -178,8 +169,7 @@ class HTTPClient(asyncore.dispatcher): ## inherit - extend in python style
 
 		if enter2_index != -1: ## foudn \r\n\r\n
 			count += 1
-			# print "count" + str(count)
-
+			
 
 		if count == 1:
 			count += 1
@@ -187,8 +177,7 @@ class HTTPClient(asyncore.dispatcher): ## inherit - extend in python style
 			header = result[0]
 			piece = result[1]
 			content_length = getcontenlength(header) ## get content-length
-			# print "content_length" + str(content_length)
-
+			
 			body_length += len(piece) ## 
 			with open(self.filename, "a+") as f:
 				f.write(piece)
@@ -201,12 +190,7 @@ class HTTPClient(asyncore.dispatcher): ## inherit - extend in python style
 				f2.flush()
 			
 		
-		##############################################################
-
-		# with open(self.filename, "a+") as f:
-		# 	f.write(buf)
-		# 	f.flush()
-
+		
 	def writeable(self): # if there is anything to send??
 		return len(self.sendbuf) > 0 ## you have sth to send
 
@@ -233,7 +217,6 @@ def main():
 
 
 	scheme = result[0]
-	# print scheme
 	servName = result[1]   #'www.google.co.th'
 	path = result[2]
 	port = result.port
@@ -256,40 +239,22 @@ def main():
 
 	if os.path.exists(filename) and before_contentlength != 0: ## if exist create file -- > resume
 		downled_size = os.path.getsize(filename)
-		print "downled_size : " + str(downled_size)	
-
+		
 		if checkResumable("header.txt", "Before_Header.txt", downled_size): ## same_file?
 			start = downled_size
 		
 	else:  ## not exist -- > load all
 		print "Start Downloading ....."
 
-
-	# newfile
-	# file_size = before_contentlength
-	# fixed_chunk_size = 2**20
-	# total_number_of_chunk = file_size/fixed_chunk_size
-
-	# if file_size%fixed_chunk_size != 0:
-	# 	total_number_of_chunk += 1
-
-	# for chunk in range(total_number_of_chunk):
-
-
-
-
 	clients = []
 	for w in range(number_Connection): ## number of grass worker
 		
 
 		new_filename = name + str(w) + "." + type_of_file
-		print "filename : " + new_filename
 		start = (before_contentlength/number_Connection +1)*w
-		print "start : " + str(start)
 		
 		end = (before_contentlength/number_Connection) + start
-		print "end : " + str(end)
-
+		
 		client = HTTPClient(servName, path, port, new_filename, start, end)
 		clients += [client]
 
@@ -330,7 +295,3 @@ def main():
 
 main()
 
-def compare(filename1, filename2):
-	print str(filecmp.cmp(filename1, filename2))
-
-# compare("test.jpg", "TN_lion-clipart-115.jpg")
