@@ -37,9 +37,9 @@ def extact_header(data): ## index is the index of \r\n\r\n ## if the web does no
 def getHeader_Before(result):
 	
 	scheme = result[0]
-	servName = result[1]   #////////
-	path = result[2] 	#///////////////
-	port = result.port #//////////////////
+	servName = result[1]  
+	path = result[2] 	
+	port = result.port
 
 	if 'https' in path:
 		print "Unable to download from this file"
@@ -211,10 +211,7 @@ def main():
 
 	url = arg_list[5]
 	result = urlparse(url)
-############################################
-	getHeader_Before(result)  ## use when reach resume state Before_Header.txt
-#############################################
-
+	getHeader_Before(result)  
 
 	scheme = result[0]
 	servName = result[1]   #'www.google.co.th'
@@ -258,13 +255,9 @@ def main():
 		client = HTTPClient(servName, path, port, new_filename, start, end)
 		clients += [client]
 
-		# clients = [HTTPClient(servName, path, port, filename, start, end)]
-			## simultineously download host, path, port, start, end, filename, request
-
-			## http://classroomclipart.com/images/gallery/Clipart/Animals/Lion_Clipart/TN_lion-clipart-115.jpg
-	logging.basicConfig(level=logging.DEBUG,
-	  	format="%(asctime)-15s %(name)s: %(message)s"
-	    )
+	# logging.basicConfig(level=logging.DEBUG,
+	#   	format="%(asctime)-15s %(name)s: %(message)s"
+	#     )
 	asyncore.loop()
 
 
