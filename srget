@@ -204,12 +204,20 @@ def main():
  	arg_list = sys.argv
  	# srget -o <output file> [-c [<numConn>]]
  	# ./srget -o test.jpg -c 2 http://classroomclipart.com/images/gallery/Clipart/Animals/Lion_Clipart/TN_lion-clipart-115.jpg
+ 	if len(arg_list) == 4:
+ 		number_Connection = 1
+ 		filename = arg_list[2]
+ 		url = arg_list[3]
+ 	elif len(arg_list) == 6:
+ 		number_Connection = int(arg_list[4])
+ 		filename = arg_list[2]
+ 		url = arg_list[5]
+ 		
+	# filename = arg_list[2]
 
-	filename = arg_list[2]
+	# number_Connection = int(arg_list[4])
 
-	number_Connection = int(arg_list[4])
-
-	url = arg_list[5]
+	# url = arg_list[5]
 	result = urlparse(url)
 	getHeader_Before(result)  
 
@@ -217,11 +225,12 @@ def main():
 	servName = result[1]   #'www.google.co.th'
 	path = result[2]
 	port = result.port
-	if scheme == 'http':
-		pass
-	else:
+
+	if 'https' in path:
 		print "Unable to download from this file"
-		sys.exit(2) ## when you want to die enter any number except 0 welcome!!
+		sys.exit(2)
+	elif 'http://' not in path:
+		path = 'http://' + path
 	if port == None:
 		port = 80
 
