@@ -1,0 +1,336 @@
+#!/usr/bin/env python
+import asyncore
+import socket as sk
+import logging
+from cStringIO import StringIO ## StringIO append is faster than the normal one
+import os
+import sys
+from urlparse import urlparse
+import filecmp
+
+# print make_request("GET", "/", {"Host": "me.com"})
+
+
+def mkRangeRequest(serv, objNmae, start, end):
+	# print "Enter byte range request"
+	return ("GET {o} HTTP/1.1\r\n" + "Host: {h}\r\n" + "Connection: close\r\n" + "Range: bytes={s}-{e}\r\n\r\n").format(o=objNmae, h=serv, s=start, e=end)
+
+def getHeaderRequest(serv, objNmae):
+	## get Header
+	return ("HEAD {o} HTTP/1.1\r\n" + "Host: {s}\r\n" + "Connection: close\r\n\r\n").format(o=objNmae, s=serv)
+
+def extact_header(data): ## index is the index of \r\n\r\n ## if the web does not have header this function is DOOMED
+	text = ""
+	text = text + data
+	header = ""
+	found_index = text.find('\r\n\r\n')
+	header_length = found_index+4
+	if found_index != -1: ## found \r\n\r\n
+		header = data[:found_index]
+	
+	piece = data[header_length:]
+	
+	f3 = open('header.txt', "w") # override it ## This here was "wb"
+	with open('header.txt', "w") as f: ## This here was "wb"
+		f.write(header)
+
+	return (header, piece)
+
+def getHeader_Before(result):
+	
+	scheme = result[0]
+	servName = result[1]   #////////
+	path = result[2] 	#///////////////
+	port = result.port #//////////////////
+
+	if scheme == 'http':
+		pass
+	else:
+		print "Unable to download from this file"
+		sys.exit(2) ## when you want to die enter any number except 0 welcome!!
+
+	if port == None:
+		port = 80
+
+	sock = sk.socket(sk.AF_INET, sk.SOCK_STREAM)		
+	request = getHeaderRequest(servName, path)	
+	
+	sock.connect((servName, port))
+	sock.send(request)
+
+	while True:
+		data = sock.recv(1024)
+		# print data
+		with open('Before_Header.txt', "w") as f:
+			f.write(data)
+		if data.find('\r\n\r\n') != -1:
+			break
+			# sock.close()
+
+def getcontenlength(header): ## get header file
+	count = 0
+	enter_index = 0
+	content_length_index = header.find('Content-Length')
+	# print content_length_index
+	content_length = 0
+
+	if content_length_index != -1:
+		enter_index = header[content_length_index:].find('\r\n')
+		content_length = header[content_length_index:content_length_index + enter_index].split(':')[1][1:]
+		# print content_length
+
+	return int(content_length)
+		
+def getSomething(filename, something): ## version include getDateModified and getETag
+	count = 0
+ 	date_modified = ""
+ 	location = "./" + filename
+	with open(location, "r") as f:
+		header = f.read()
+		found_sth_index = header.find(something)
+	
+	if found_sth_index != -1:
+		enter_index = header[found_sth_index:].find('\r\n')
+		result = header[found_sth_index:found_sth_index+enter_index]
+		return result
+	else:
+		return None
+
+def checkResumable(oldfile, newfile, downloaded_size): ## check date  -- > check downloaded size vs Contenlength
+
+	old_ETag = getSomething(oldfile, "ETag")
+	new_ETag = getSomething(newfile, "ETag")
+
+	boo1 = True
+	boo2 = True
+	boo3 = True
+	content_length = 0
+
+
+	# check Etag first and then date modified
+
+	if old_ETag == None: ## don't have ETaf
+		old_date = getSomething(oldfile, "Last-Modified")
+		new_date = getSomething(newfile, "Last-Modified")
+
+		if old_date != new_date: ## different file
+			boo1 = False
+		
+	elif old_ETag != new_ETag: ## have ETag + same file
+		boo3 = False
+
+	with open(oldfile, "r") as f1:
+		header = f1.read()
+		content_length = getcontenlength(header) # get content-length from old file
+
+	if downloaded_size < content_length: ## unfinished download
+		boo2 = True
+	else:
+		boo2 = False
+
+	check = (boo1 and boo2) or (boo2 and boo3)
+	print "Your file already exist"
+	return check
+
+class HTTPClient(asyncore.dispatcher): ## inherit - extend in python style
+
+	def __init__(self, host, path, port, filename, start, end):
+		asyncore.dispatcher.__init__(self)	## super -- call structure of super class , self is itself object
+		self.create_socket(sk.AF_INET, sk.SOCK_STREAM)
+		self.connect((host, port))
+		self.filename = filename
+		self.host = host
+		self.recvbuf = StringIO()  ## it's like string builder
+		self.logger = logging.getLogger(host+path)
+		# self.flag_number = flag_number
+		self.sendbuf = ""
+		self.write(mkRangeRequest(host, path, start, end))  ## Non-persistent connection req_type, what, details, version="1.1", start, end
+
+	def write(self, msg):
+		self.sendbuf += msg
+
+
+	def handle_connect(self):
+		## when open it will call this function
+		self.logger.debug("connection established")
+
+
+	def handle_close(self):
+		self.logger.debug("got disconnected")
+		self.close()
+
+
+	def handle_read(self): ## when recv = there is something for you to read --> do what
+		buf = self.recv(8192) ## 2K - 10K -- recoomend 8K
+		# print buf
+		# self.recvbuf.write(buf)
+
+		self.logger.debug("recv {0} bytes".format(len(buf)))
+
+		body_length = 0
+		content_length = ""
+		count = 0
+		##########################################################
+		
+		header = open(self.filename, "a+")
+
+		enter2_index = buf.find('\r\n\r\n')
+
+		if enter2_index != -1: ## foudn \r\n\r\n
+			count += 1
+			# print "count" + str(count)
+
+
+		if count == 1:
+			count += 1
+			result = extact_header(buf) ## extract header and write header file 
+			header = result[0]
+			piece = result[1]
+			content_length = getcontenlength(header) ## get content-length
+			# print "content_length" + str(content_length)
+
+			body_length += len(piece) ## 
+			with open(self.filename, "a+") as f:
+				f.write(piece)
+				f.flush()
+
+		elif body_length < content_length:
+			body_length += len(buf)
+			with open(self.filename, "a+") as f2:
+				f2.write(buf)
+				f2.flush()
+			
+		
+		##############################################################
+
+		# with open(self.filename, "a+") as f:
+		# 	f.write(buf)
+		# 	f.flush()
+
+	def writeable(self): # if there is anything to send??
+		return len(self.sendbuf) > 0 ## you have sth to send
+
+
+	def handle_write(self):
+		bytes_send = self.send(self.sendbuf)
+		self.sendbuf = self.sendbuf[bytes_send:] ## the remainder
+
+
+def main():
+ 	arg_list = sys.argv
+ 	# srget -o <output file> [-c [<numConn>]]
+ 	# ./srget -o test.jpg -c 2 http://classroomclipart.com/images/gallery/Clipart/Animals/Lion_Clipart/TN_lion-clipart-115.jpg
+
+	filename = arg_list[2]
+
+	number_Connection = int(arg_list[4])
+
+	url = arg_list[5]
+	result = urlparse(url)
+############################################
+	getHeader_Before(result)  ## use when reach resume state Before_Header.txt
+#############################################
+
+
+	scheme = result[0]
+	# print scheme
+	servName = result[1]   #'www.google.co.th'
+	path = result[2]
+	port = result.port
+	if scheme == 'http':
+		pass
+	else:
+		print "Unable to download from this file"
+		sys.exit(2) ## when you want to die enter any number except 0 welcome!!
+	if port == None:
+		port = 80
+
+
+	with open('Before_Header.txt', "r") as f:
+		header = f.read()
+		before_contentlength = getcontenlength(header)
+
+	start = 0
+	end = ""
+	name , type_of_file = filename.split(".")
+
+	if os.path.exists(filename) and before_contentlength != 0: ## if exist create file -- > resume
+		downled_size = os.path.getsize(filename)
+		print "downled_size : " + str(downled_size)	
+
+		if checkResumable("header.txt", "Before_Header.txt", downled_size): ## same_file?
+			start = downled_size
+		
+	else:  ## not exist -- > load all
+		print "Start Downloading ....."
+
+
+	# newfile
+	# file_size = before_contentlength
+	# fixed_chunk_size = 2**20
+	# total_number_of_chunk = file_size/fixed_chunk_size
+
+	# if file_size%fixed_chunk_size != 0:
+	# 	total_number_of_chunk += 1
+
+	# for chunk in range(total_number_of_chunk):
+
+
+
+
+	clients = []
+	for w in range(number_Connection): ## number of grass worker
+		
+
+		new_filename = name + str(w) + "." + type_of_file
+		print "filename : " + new_filename
+		start = (before_contentlength/number_Connection +1)*w
+		print "start : " + str(start)
+		
+		end = (before_contentlength/number_Connection) + start
+		print "end : " + str(end)
+
+		client = HTTPClient(servName, path, port, new_filename, start, end)
+		clients += [client]
+
+		# clients = [HTTPClient(servName, path, port, filename, start, end)]
+			## simultineously download host, path, port, start, end, filename, request
+
+			## http://classroomclipart.com/images/gallery/Clipart/Animals/Lion_Clipart/TN_lion-clipart-115.jpg
+	logging.basicConfig(level=logging.DEBUG,
+	  	format="%(asctime)-15s %(name)s: %(message)s"
+	    )
+	asyncore.loop()
+
+
+	full = open(filename, "w")
+	content = ""
+	for i in range(number_Connection):
+		new_filename = name + str(i) + "." + type_of_file
+		with open(new_filename, "r") as f:
+			data = f.read()
+			content += data
+
+	with open(filename, "a+") as f1:
+		f1.write(content)
+
+			
+	# import filecmp
+	
+	 
+ 	os.remove("header.txt")
+	os.remove("Before_Header.txt")
+
+	for j in range(number_Connection):
+		new_filename2 = name + str(j) + "." + type_of_file
+		os.remove(new_filename2)
+		
+	print "Download Complete"
+
+
+main()
+
+def compare(filename1, filename2):
+	print str(filecmp.cmp(filename1, filename2))
+
+# compare("test.jpg", "TN_lion-clipart-115.jpg")
